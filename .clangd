@@ -1,0 +1,51 @@
+# .clangd 配置文件 - 自动生成
+# Qt项目 Language Server 配置
+
+CompileFlags:
+  Add:
+    # C++标准
+    - "-std=c++17"
+    
+    # Windows兼容性 (Windows用户需要)
+    - "-fms-compatibility"
+    - "-fms-extensions"
+    
+    # Qt相关定义
+    - "-DQT_CORE_LIB"
+    - "-DQT_WIDGETS_LIB"
+    
+    # 项目包含路径
+    - "-I${workspaceFolder}/include"
+    - "-I${workspaceFolder}/src"
+    
+    # Qt包含路径 (自动检测)
+    - "-ID:\install\Qt\Qt5.12\5.12.12\msvc2017_64/include"
+    - "-ID:\install\Qt\Qt5.12\5.12.12\msvc2017_64/include/QtCore"
+    - "-ID:\install\Qt\Qt5.12\5.12.12\msvc2017_64/include/QtWidgets"
+    
+    # Windows SDK路径 (Windows用户需要)
+    - "-IC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt"
+    - "-IC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared"
+    - "-IC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um"
+    
+    # Visual Studio包含路径
+    - "-ID:/install/visualStudio/2017/Community/VC/Tools/MSVC/14.16.27023/include"
+
+  Remove:
+    # 移除可能有问题的标志
+    - "-W*"
+    - "-std=*"
+
+# 索引配置
+Index:
+  Background: Build
+  
+# 补全配置  
+Completion:
+  AllScopes: true
+  
+# 诊断配置
+Diagnostics:
+  Suppress:
+    - "pp_including_mainfile_in_preamble"
+    - "unknown_warning_option"
