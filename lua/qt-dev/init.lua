@@ -16,6 +16,12 @@ local ui_templates = require("qt-dev.templates.ui")
 local resources = require("qt-dev.templates.resources")
 local translations = require("qt-dev.templates.translations")
 
+-- 工具模块
+local project_opener = require("qt-dev.tools.project_opener")
+
+-- 配置模块
+local keymaps = require("qt-dev.config.keymaps")
+
 -- 插件是否已初始化
 local initialized = false
 
@@ -63,6 +69,11 @@ function M.setup(user_config)
   -- 设置环境检测
   if final_config.environment_check then
     M.setup_environment_detection()
+  end
+  
+  -- 设置快捷键
+  if final_config.default_mappings ~= false then
+    keymaps.setup_keymaps()
   end
   
   -- 标记为已初始化
@@ -463,7 +474,7 @@ function M.setup_environment_detection()
   -- Qt项目导航命令
   vim.api.nvim_create_user_command("QtOpenProject", function()
     M.open_qt_project_interactive()
-  end, { desc = "交互式打开Qt项目" })
+  end, { desc = "交互式打开Qt项目（支持历史记录和递归搜索）" })
 
   vim.api.nvim_create_user_command("QtOpenCMake", function()
     M.open_cmake_file()
@@ -472,6 +483,28 @@ function M.setup_environment_detection()
   vim.api.nvim_create_user_command("QtProjectInfo", function()
     M.show_qt_project_info()
   end, { desc = "显示当前Qt项目信息" })
+
+  -- 项目历史管理命令
+  vim.api.nvim_create_user_command("QtProjectHistory", function()
+    M.show_project_history()
+  end, { desc = "显示Qt项目历史记录" })
+
+  vim.api.nvim_create_user_command("QtCleanHistory", function()
+    M.clean_project_history()
+  end, { desc = "清理无效的项目历史记录" })
+
+  vim.api.nvim_create_user_command("QtAddToHistory", function()
+    M.add_current_to_history()
+  end, { desc = "添加当前项目到历史记录" })
+
+  -- 快捷键帮助命令
+  vim.api.nvim_create_user_command("QtKeymaps", function()
+    keymaps.show_keymaps()
+  end, { desc = "显示Qt开发快捷键帮助" })
+
+  vim.api.nvim_create_user_command("QtHelp", function()
+    keymaps.show_keymaps()
+  end, { desc = "显示Qt开发帮助信息" })
 end
 
 -- 调试信息
@@ -498,74 +531,10 @@ function M.show_full_environment_report()
   return environment_detector.show_full_environment_report()
 end
 
--- Qt项目导航功能
+-- Qt项目导航功能 - 使用增强的项目打开器
 function M.open_qt_project_interactive()
   if not M.ensure_initialized() then return end
-  
-  -- 搜索当前目录及子目录中的Qt项目
-  local qt_projects = {}
-  local current_dir = vim.fn.getcwd()
-  
-  -- 检查当前目录
-  if core.detection.is_qt_project() then
-    table.insert(qt_projects, {
-      name = vim.fn.fnamemodify(current_dir, ":t"),
-      path = current_dir,
-      type = "current"
-    })
-  end
-  
-  -- 搜索子目录
-  local subdirs = vim.fn.glob("*/CMakeLists.txt", false, true)
-  for _, cmake_file in ipairs(subdirs) do
-    local file = io.open(cmake_file, "r")
-    if file then
-      local content = file:read("*a")
-      file:close()
-      if content:match("find_package.*Qt[56]") or content:match("find_package.*Qt") then
-        local subdir_path = vim.fn.fnamemodify(cmake_file, ":h")
-        local subdir_name = vim.fn.fnamemodify(subdir_path, ":t")
-        table.insert(qt_projects, {
-          name = subdir_name,
-          path = vim.fn.fnamemodify(subdir_path, ":p"),
-          type = "subdir"
-        })
-      end
-    end
-  end
-  
-  if #qt_projects == 0 then
-    vim.notify("❌ 未找到Qt项目", vim.log.levels.WARN)
-    return
-  end
-  
-  -- 显示选择菜单
-  local choices = {}
-  for i, project in ipairs(qt_projects) do
-    local label = project.name
-    if project.type == "current" then
-      label = label .. " (当前目录)"
-    else
-      label = label .. " (子目录)"
-    end
-    table.insert(choices, label)
-  end
-  
-  vim.ui.select(choices, {
-    prompt = "选择Qt项目:",
-  }, function(choice, idx)
-    if choice and idx then
-      local selected_project = qt_projects[idx]
-      vim.cmd("cd " .. vim.fn.fnameescape(selected_project.path))
-      vim.notify("📂 已切换到Qt项目: " .. selected_project.name, vim.log.levels.INFO)
-      
-      -- 打开CMakeLists.txt
-      M.open_cmake_file()
-      
-      -- 触发项目检测
-      vim.api.nvim_exec_autocmds("DirChanged", { pattern = "*" })
-    end
-  end)
+  project_opener.open_qt_project()
 end
 
 function M.open_cmake_file()
@@ -617,6 +586,42 @@ function M.show_qt_project_info()
   end
   if project_info.files.ts_files then
     table.insert(info_lines, "  ✅ .ts 翻译文件")
+  end
+  
+  vim.notify(table.concat(info_lines, "\n"), vim.log.levels.INFO)
+end
+
+-- 项目历史相关功能
+function M.clean_project_history()
+  if not M.ensure_initialized() then return end
+  project_opener.clean_project_history()
+end
+
+function M.add_current_to_history()
+  if not M.ensure_initialized() then return end
+  project_opener.add_current_project_to_history()
+end
+
+function M.show_project_history()
+  if not M.ensure_initialized() then return end
+  local history = project_opener.get_project_history()
+  
+  if #history == 0 then
+    vim.notify("📚 项目历史记录为空", vim.log.levels.INFO)
+    return
+  end
+  
+  local info_lines = {
+    "📚 Qt项目历史记录",
+    "==================",
+  }
+  
+  for i, entry in ipairs(history) do
+    if i <= 15 then  -- 显示最近15个
+      local time_str = os.date("%Y-%m-%d %H:%M", entry.timestamp)
+      table.insert(info_lines, string.format("%d. [%s] %s", i, time_str, entry.project))
+      table.insert(info_lines, string.format("   📁 %s", entry.path))
+    end
   end
   
   vim.notify(table.concat(info_lines, "\n"), vim.log.levels.INFO)

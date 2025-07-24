@@ -309,6 +309,12 @@ function M.create_project_direct(project_name, project_type, project_path)
     
     -- 触发Qt项目检测
     vim.api.nvim_exec_autocmds("DirChanged", { pattern = "*" })
+    
+    -- 自动添加到项目历史记录
+    vim.defer_fn(function()
+      local project_opener = require("qt-dev.tools.project_opener")
+      project_opener.add_current_project_to_history()
+    end, 1000)
   end, 500)
   
   return true

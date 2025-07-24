@@ -1,122 +1,233 @@
--- Qt项目快捷键配置模块 - 用户配置版本
+-- Qt开发快捷键配置模块 - 基于qt-project优化
 local M = {}
 
-function M.setup_keymaps(is_vscode)
-  is_vscode = is_vscode or false
-  
-  -- 根据环境选择不同的实现
-  local get_build_func = function(action)
-    if is_vscode then
-      local vscode_integration = require("qt-dev.core.vscode_integration")
-      if action == "build" then
-        return vscode_integration.integrated_build
-      elseif action == "run" then
-        return vscode_integration.integrated_run
-      elseif action == "clean" then
-        return vscode_integration.integrated_clean
-      end
-    end
+function M.setup_keymaps()
+  -- Qt项目管理快捷键
+  local project_keymaps = {
+    -- 项目管理核心功能
+    ["<leader>qo"] = { 
+      function() require("qt-dev.tools.project_opener").open_qt_project() end, 
+      "打开Qt项目（历史记录+递归搜索）" 
+    },
+    ["<leader>qn"] = { 
+      function() require("qt-dev.templates.project_structure").create_project_interactive() end, 
+      "创建新Qt项目" 
+    },
+    ["<leader>qp"] = { 
+      function() require("qt-dev").show_qt_project_info() end, 
+      "显示项目信息" 
+    },
+    ["<leader>qm"] = { 
+      function() require("qt-dev").open_cmake_file() end, 
+      "打开CMakeLists.txt" 
+    },
     
-    -- 默认使用qt-dev原生功能
-    local build_module = require("qt-dev.tools.build")
-    if action == "build" then
-      return build_module.build_project
-    elseif action == "run" then
-      return build_module.run_project
-    elseif action == "clean" then
-      return build_module.clean_project
-    end
-  end
-  
-  local get_designer_func = function()
-    if is_vscode then
-      local vscode_integration = require("qt-dev.core.vscode_integration")
-      return vscode_integration.open_designer
-    else
-      return require("qt-dev.tools.designer").open_current_file_ui
-    end
-  end
-
-  -- 设置键盘快捷键 - 包含配置管理
-  local keymaps = {
-    -- 项目管理
-    ["<leader>qo"] = { function() require("qt-dev.core.project_opener").open_qt_project() end, "打开Qt项目" },
-    ["<leader>qn"] = { function() require("qt-dev.templates.project").create_qt_project() end, "创建新Qt项目" },
+    -- 项目历史管理
+    ["<leader>qh"] = { 
+      function() require("qt-dev").show_project_history() end, 
+      "显示项目历史记录" 
+    },
+    ["<leader>qH"] = { 
+      function() require("qt-dev").clean_project_history() end, 
+      "清理项目历史记录" 
+    },
+    ["<leader>qa"] = { 
+      function() require("qt-dev").add_current_to_history() end, 
+      "添加当前项目到历史" 
+    },
     
-    -- 构建和运行 - 智能选择VS Code或原生实现
-    ["<leader>qb"] = { get_build_func("build"), is_vscode and "构建项目 (VS Code集成)" or "构建项目" },
-    ["<leader>qd"] = { get_designer_func(), is_vscode and "智能打开Qt Designer (VS Code集成)" or "智能打开Qt Designer" },
-    ["<leader>qD"] = { function() require("qt-dev.tools.designer").open_empty_designer() end, "直接打开Qt Designer" },
+    -- Qt Designer集成
+    ["<leader>qd"] = { 
+      function() require("qt-dev.tools.designer").open_current_file_ui() end, 
+      "智能打开Qt Designer" 
+    },
+    ["<leader>qD"] = { 
+      function() require("qt-dev.tools.designer").open_empty_designer() end, 
+      "打开空的Qt Designer" 
+    },
     
-    -- 工具组 (qt + tools) - 集成版本
-    ["<leader>qtb"] = { get_build_func("build"), is_vscode and "Tools: 构建项目 (集成)" or "Tools: 构建项目" },
-    ["<leader>qtc"] = { get_build_func("clean"), is_vscode and "Tools: 清理项目 (集成)" or "Tools: 清理项目" },
-    ["<leader>qtr"] = { get_build_func("run"), is_vscode and "Tools: 运行项目 (集成)" or "Tools: 运行项目" },
-    ["<leader>qtd"] = { function() require("qt-dev.tools.build").build_debug_project() end, "Tools: Debug构建" },
-    ["<leader>qtD"] = { get_designer_func(), is_vscode and "Tools: 智能Qt Designer (集成)" or "Tools: 智能打开Qt Designer" },
+    -- 类创建快捷键
+    ["<leader>qc"] = { 
+      function() require("qt-dev.templates.class_creator").create_quick_qt_class() end, 
+      "快速创建Qt类" 
+    },
+    ["<leader>qcu"] = { 
+      function() require("qt-dev.templates.class_creator").create_qt_ui_class() end, 
+      "创建Qt UI类" 
+    },
+    ["<leader>qci"] = { 
+      function() require("qt-dev.templates.class_creator").create_qt_inheritance_class() end, 
+      "创建Qt继承类" 
+    },
+    ["<leader>qcn"] = { 
+      function() require("qt-dev.templates.class_creator").create_normal_class() end, 
+      "创建普通C++类" 
+    },
     
-    -- 类创建相关快捷键
-    ["<leader>qc"] = { function() require("qt-dev.templates.class").create_quick_qt_class() end, "快速创建Qt类" },
-    ["<leader>qcu"] = { function() require("qt-dev.templates.class").create_qt_ui_class() end, "创建Qt UI类" },
-    ["<leader>qci"] = { function() require("qt-dev.templates.class").create_qt_inheritance_class() end, "创建Qt继承类" },
-    ["<leader>qcn"] = { function() require("qt-dev.templates.class").create_normal_class() end, "创建普通C++类" },
+    -- UI模板快捷键
+    ["<leader>qui"] = { 
+      function() require("qt-dev.templates.ui").select_and_create_ui_template() end, 
+      "创建UI模板" 
+    },
+    ["<leader>qul"] = { 
+      function() require("qt-dev.templates.ui").list_ui_files() end, 
+      "列出UI文件" 
+    },
     
-    -- UI模板相关快捷键
-    ["<leader>qui"] = { function() require("qt-dev.templates.ui").select_and_create_ui_template() end, "创建UI模板" },
-    ["<leader>qul"] = { function() require("qt-dev.templates.ui").list_ui_files() end, "列出UI文件" },
+    -- 资源文件快捷键
+    ["<leader>qrs"] = { 
+      function() require("qt-dev.templates.resources").select_and_create_resource_template() end, 
+      "创建资源模板" 
+    },
+    ["<leader>qrl"] = { 
+      function() require("qt-dev.templates.resources").list_resource_files() end, 
+      "列出资源文件" 
+    },
     
-    -- 状态检查和诊断
-    ["<leader>qst"] = { function() require("qt-dev.tools.status").check_project_status() end, "完整状态检查" },
-    ["<leader>qsd"] = { function() require("qt-dev.tools.status").quick_diagnose() end, "快速诊断" },
-    ["<leader>qsf"] = { function() require("qt-dev.tools.status").auto_fix_common_issues() end, "自动修复问题" },
+    -- 翻译文件快捷键
+    ["<leader>qts"] = { 
+      function() require("qt-dev.templates.translations").select_and_create_translation_template() end, 
+      "创建翻译模板" 
+    },
+    ["<leader>qtl"] = { 
+      function() require("qt-dev.templates.translations").list_translation_files() end, 
+      "列出翻译文件" 
+    },
     
-    -- 配置管理 - 新增功能
-    ["<leader>qcs"] = { function() require("qt-dev.config.user_config").setup_wizard() end, "运行配置向导" },
-    ["<leader>qcc"] = { function() require("qt-dev.config.user_config").show_config() end, "显示当前配置" },
-    ["<leader>qcf"] = { function() require("qt-dev.config.user_config").create_default_config() end, "创建配置文件" },
+    -- 环境检测快捷键
+    ["<leader>qe"] = { 
+      function() require("qt-dev.core.environment_detector").show_full_environment_report() end, 
+      "完整环境报告" 
+    },
+    ["<leader>qE"] = { 
+      function() require("qt-dev.core.environment_detector").quick_environment_check() end, 
+      "快速环境检查" 
+    },
     
-    -- 插件问题修复
-    ["<leader>qpf"] = { function() require("qt-dev.core.utils").fix_common_plugin_issues() end, "修复插件问题" },
-    
-    -- 环境检测功能 (集成自qt-project)
-    ["<leader>qse"] = { function() require("qt-dev.core.environment_detector").show_full_environment_report() end, "完整环境报告" },
-    ["<leader>qsq"] = { function() require("qt-dev.core.environment_detector").quick_environment_check() end, "快速环境检查" },
+    -- 配置管理快捷键
+    ["<leader>qcfg"] = { 
+      function() require("qt-dev.config").show_config() end, 
+      "显示配置信息" 
+    },
+    ["<leader>qwiz"] = { 
+      function() require("qt-dev.config").setup_wizard() end, 
+      "配置向导" 
+    },
   }
   
-  -- VS Code集成功能 - 条件添加
-  if is_vscode then
-    keymaps["<leader>qvs"] = { function() 
-      local vscode_integration = require("qt-dev.core.vscode_integration")
-      vscode_integration.sync_config_to_vscode() 
-    end, "同步配置到VS Code" }
-    
-    keymaps["<leader>qvi"] = { function() 
-      local vscode_integration = require("qt-dev.core.vscode_integration")
-      vscode_integration.detect_and_suggest() 
-    end, "VS Code集成建议" }
-  end
-
-  -- 使用更高优先级设置快捷键
-  for key, mapping in pairs(keymaps) do
-    vim.keymap.set("n", key, mapping[1], { 
-      desc = mapping[2], 
-      noremap = true, 
-      silent = true,
-      buffer = false -- 全局快捷键
-    })
+  -- 注册快捷键
+  for key, mapping in pairs(project_keymaps) do
+    vim.keymap.set("n", key, mapping[1], { desc = mapping[2], noremap = true, silent = true })
   end
   
-  -- 显示配置相关快捷键提示 (仅首次运行)
-  local user_config = require("qt-dev.config.user_config")
-  if user_config.is_first_run() then
-    vim.notify("💡 配置管理快捷键: <leader>qcs(向导) <leader>qcc(显示) <leader>qcf(创建)", vim.log.levels.INFO)
+  -- 创建Which-Key分组描述（如果安装了which-key）
+  local has_which_key, wk = pcall(require, "which-key")
+  if has_which_key then
+    wk.register({
+      ["<leader>q"] = {
+        name = "+Qt开发",
+        o = "打开项目",
+        n = "新建项目", 
+        p = "项目信息",
+        m = "打开CMake",
+        h = "项目历史",
+        H = "清理历史",
+        a = "添加到历史",
+        d = "Qt Designer",
+        D = "空Designer",
+        e = "环境报告",
+        E = "快速检查",
+        c = {
+          name = "+创建类",
+          [""] = "快速创建",
+          u = "UI类",
+          i = "继承类", 
+          n = "普通类",
+          f = "配置",
+        },
+        u = {
+          name = "+UI模板",
+          i = "创建UI",
+          l = "列出UI",
+        },
+        r = {
+          name = "+资源文件",
+          s = "创建资源",
+          l = "列出资源",
+        },
+        t = {
+          name = "+翻译文件",
+          s = "创建翻译",
+          l = "列出翻译",
+        },
+      }
+    })
   end
 end
 
--- 设置项目特定快捷键
-function M.setup_project_keymaps()
-  -- 项目特定的快捷键可以在这里设置
-  vim.notify("📋 Qt项目快捷键已激活", vim.log.levels.INFO)
+-- 获取快捷键映射表（用于显示帮助）
+function M.get_keymaps()
+  return {
+    ["项目管理"] = {
+      ["<leader>qo"] = "打开Qt项目（智能搜索）",
+      ["<leader>qn"] = "创建新Qt项目",
+      ["<leader>qp"] = "显示项目信息",
+      ["<leader>qm"] = "打开CMakeLists.txt",
+    },
+    ["项目历史"] = {
+      ["<leader>qh"] = "显示项目历史记录",
+      ["<leader>qH"] = "清理项目历史记录",
+      ["<leader>qa"] = "添加当前项目到历史",
+    },
+    ["Qt Designer"] = {
+      ["<leader>qd"] = "智能打开Qt Designer",
+      ["<leader>qD"] = "打开空的Qt Designer",
+    },
+    ["类创建"] = {
+      ["<leader>qc"] = "快速创建Qt类",
+      ["<leader>qcu"] = "创建Qt UI类",
+      ["<leader>qci"] = "创建Qt继承类",
+      ["<leader>qcn"] = "创建普通C++类",
+    },
+    ["UI模板"] = {
+      ["<leader>qui"] = "创建UI模板",
+      ["<leader>qul"] = "列出UI文件",
+    },
+    ["资源文件"] = {
+      ["<leader>qrs"] = "创建资源模板",
+      ["<leader>qrl"] = "列出资源文件",
+    },
+    ["翻译文件"] = {
+      ["<leader>qts"] = "创建翻译模板",
+      ["<leader>qtl"] = "列出翻译文件",
+    },
+    ["环境检测"] = {
+      ["<leader>qe"] = "完整环境报告",
+      ["<leader>qE"] = "快速环境检查",
+    },
+  }
+end
+
+-- 显示快捷键帮助
+function M.show_keymaps()
+  local keymaps = M.get_keymaps()
+  local help_lines = {
+    "🎯 nvim-qt-dev 快捷键帮助",
+    "================================",
+    ""
+  }
+  
+  for category, keys in pairs(keymaps) do
+    table.insert(help_lines, "📋 " .. category .. ":")
+    for key, desc in pairs(keys) do
+      table.insert(help_lines, string.format("  %-15s - %s", key, desc))
+    end
+    table.insert(help_lines, "")
+  end
+  
+  table.insert(help_lines, "💡 提示: 使用 :QtOpenProject 或 <leader>qo 开始你的Qt开发之旅！")
+  
+  vim.notify(table.concat(help_lines, "\n"), vim.log.levels.INFO)
 end
 
 return M
