@@ -78,9 +78,9 @@ function M.setup_keymaps(is_vscode)
     -- 插件问题修复
     ["<leader>qpf"] = { function() require("qt-dev.core.utils").fix_common_plugin_issues() end, "修复插件问题" },
     
-    -- 环境检测功能
-    ["<leader>qse"] = { function() require("qt-dev.core.environment").show_full_environment_report() end, "完整环境报告" },
-    ["<leader>qsq"] = { function() require("qt-dev.core.environment").quick_environment_check() end, "快速环境检查" },
+    -- 环境检测功能 (集成自qt-project)
+    ["<leader>qse"] = { function() require("qt-dev.core.environment_detector").show_full_environment_report() end, "完整环境报告" },
+    ["<leader>qsq"] = { function() require("qt-dev.core.environment_detector").quick_environment_check() end, "快速环境检查" },
   }
   
   -- VS Code集成功能 - 条件添加

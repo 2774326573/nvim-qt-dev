@@ -1,4 +1,4 @@
--- nvim-qt-dev 主入口模块
+-- nvim-qt-dev 主入口模块 - 集成qt-project功能
 local M = {}
 
 -- 插件版本
@@ -9,6 +9,8 @@ local config = require("qt-dev.config")
 local templates = require("qt-dev.templates")
 local tools = require("qt-dev.tools")
 local core = require("qt-dev.core")
+local compile_commands = require("qt-dev.tools.compile_commands")
+local environment_detector = require("qt-dev.core.environment_detector")
 
 -- 插件是否已初始化
 local initialized = false
@@ -25,6 +27,10 @@ local default_config = {
   notify_level = vim.log.levels.INFO,
   -- LSP自动配置
   auto_lsp_config = true,
+  -- 自动构建功能
+  auto_build = true,
+  -- 环境检测
+  environment_check = true,
 }
 
 -- 插件设置
@@ -43,6 +49,16 @@ function M.setup(user_config)
   -- 如果启用了自动LSP配置
   if final_config.auto_lsp_config then
     M.setup_lsp()
+  end
+  
+  -- 设置自动构建功能
+  if final_config.auto_build then
+    M.setup_auto_build()
+  end
+  
+  -- 设置环境检测
+  if final_config.environment_check then
+    M.setup_environment_detection()
   end
   
   -- 标记为已初始化
@@ -157,6 +173,154 @@ function M.health_check()
   return health.check()
 end
 
+-- 设置自动构建功能
+function M.setup_auto_build()
+  -- BufWritePost 自动重启LSP
+  vim.api.nvim_create_autocmd("BufWritePost", {
+    pattern = { "*.cpp", "*.h", "*.hpp", "*.cxx", "*.cc" },
+    callback = function()
+      vim.cmd("LspRestart")
+    end,
+  })
+
+  -- 保存 CMakeLists.txt 时自动构建 CMake
+  vim.api.nvim_create_autocmd("BufWritePost", {
+    pattern = { "CMakeLists.txt", "*.cmake" },
+    callback = function()
+      local project_dir = vim.fn.getcwd()
+      
+      -- 检查是否在Qt项目中
+      if core.detection.is_qt_project() then
+        vim.notify("🔄 检测到CMake文件保存，开始自动构建...", vim.log.levels.INFO)
+        
+        -- 延迟执行以避免文件保存冲突
+        vim.defer_fn(function()
+          local build_dir = project_dir .. (core.utils.is_windows() and "\\build" or "/build")
+          
+          -- 确保build目录存在
+          if vim.fn.isdirectory(build_dir) == 0 then
+            vim.fn.mkdir(build_dir, "p")
+          end
+          
+          -- 切换到build目录并运行cmake
+          local cmake_cmd
+          if core.utils.is_windows() then
+            cmake_cmd = string.format('cd /d "%s" && cmake .. -G "Visual Studio 17 2022" -A x64', build_dir)
+          else
+            cmake_cmd = string.format('cd "%s" && cmake ..', build_dir)
+          end
+          
+          -- 在终端中执行CMake命令
+          vim.notify("🔧 执行CMake配置: " .. cmake_cmd, vim.log.levels.INFO)
+          
+          -- 使用vim.system (Neovim 0.10+) 或 vim.fn.system
+          if vim.system then
+            vim.system({ 'cmake', '..', '-B', build_dir }, {
+              cwd = project_dir,
+              text = true,
+            }, function(result)
+              if result.code == 0 then
+                vim.notify("✅ CMake配置成功完成", vim.log.levels.INFO)
+                -- 更新compile_commands.json
+                compile_commands.update_compile_commands(project_dir)
+              else
+                vim.notify("❌ CMake配置失败: " .. (result.stderr or "未知错误"), vim.log.levels.ERROR)
+              end
+            end)
+          else
+            -- 回退到同步执行
+            local result = vim.fn.system(cmake_cmd)
+            if vim.v.shell_error == 0 then
+              vim.notify("✅ CMake配置成功完成", vim.log.levels.INFO)
+              compile_commands.update_compile_commands(project_dir)
+            else
+              vim.notify("❌ CMake配置失败: " .. result, vim.log.levels.ERROR)
+            end
+          end
+        end, 500)
+      end
+    end,
+  })
+end
+
+-- 设置环境检测
+function M.setup_environment_detection()
+  -- 项目检测和通知
+  vim.api.nvim_create_autocmd({ "VimEnter", "DirChanged" }, {
+    callback = function()
+      if core.detection.is_qt_project() then
+        local env_info = environment_detector.detect_development_environment()
+        vim.notify("🎉 检测到Qt项目，Qt开发工具已激活！(" .. env_info.env_type .. ")", vim.log.levels.INFO)
+        vim.notify("💡 使用 <leader>q 查看Qt相关快捷键", vim.log.levels.INFO)
+        
+        -- 快速环境检查
+        vim.defer_fn(function()
+          environment_detector.quick_environment_check()
+        end, 1000)
+        
+        -- 设置文件监控
+        local project_dir = vim.fn.getcwd()
+        compile_commands.setup_compile_commands_watcher(project_dir)
+      end
+    end,
+  })
+
+  -- 清理资源的autocmd
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    callback = function()
+      compile_commands.stop_compile_commands_watcher()
+    end,
+  })
+
+  -- 创建用户命令 (集成自qt-project)
+  vim.api.nvim_create_user_command("QtCreateProject", function(opts)
+    if opts.args and opts.args ~= "" then
+      local args = vim.split(opts.args, " ")
+      local project_name = args[1]
+      local project_type = args[2] or "desktop"
+      local project_structure = require("qt-dev.templates.project_structure")
+      project_structure.create_project_direct(project_name, project_type)
+    else
+      local project_structure = require("qt-dev.templates.project_structure")
+      project_structure.create_project_interactive()
+    end
+  end, {
+    nargs = "*",
+    desc = "创建Qt项目 (用法: QtCreateProject [项目名] [类型])",
+    complete = function()
+      return {"desktop", "console", "web", "qml", "static_lib", "dynamic_lib"}
+    end
+  })
+  
+  vim.api.nvim_create_user_command("QtCreateDesktop", function(opts)
+    local project_structure = require("qt-dev.templates.project_structure")
+    if opts.args and opts.args ~= "" then
+      project_structure.create_project_direct(opts.args, "desktop")
+    else
+      vim.ui.input({ prompt = "请输入桌面应用项目名称: " }, function(input)
+        if input and input ~= "" then
+          project_structure.create_project_direct(input, "desktop")
+        end
+      end)
+    end
+  end, {
+    nargs = "?",
+    desc = "创建Qt桌面应用项目"
+  })
+
+  vim.api.nvim_create_user_command("QtEnvironmentCheck", function()
+    environment_detector.show_full_environment_report()
+  end, {
+    desc = "显示Qt开发环境检测报告"
+  })
+
+  vim.api.nvim_create_user_command("QtQuickCheck", function()
+    environment_detector.quick_environment_check()
+  end, {
+    desc = "快速Qt环境检查"
+  })
+end
+
 -- 调试信息
 function M.debug()
   local info = M.info()
@@ -168,6 +332,17 @@ function M.debug()
   
   print(vim.inspect(debug_info))
   return debug_info
+end
+
+-- 环境检测相关函数
+function M.quick_environment_check()
+  if not M.ensure_initialized() then return end
+  return environment_detector.quick_environment_check()
+end
+
+function M.show_full_environment_report()
+  if not M.ensure_initialized() then return end
+  return environment_detector.show_full_environment_report()
 end
 
 return M
