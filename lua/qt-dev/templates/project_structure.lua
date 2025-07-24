@@ -288,6 +288,29 @@ function M.create_project_direct(project_name, project_type, project_path)
   end
   
   vim.notify("✅ Qt项目创建成功: " .. full_project_path, vim.log.levels.INFO)
+  
+  -- 自动跳转到新创建的项目并打开CMakeLists.txt
+  vim.defer_fn(function()
+    -- 切换到项目目录
+    vim.cmd("cd " .. vim.fn.fnameescape(full_project_path))
+    vim.notify("📂 已切换到项目目录: " .. full_project_path, vim.log.levels.INFO)
+    
+    -- 打开CMakeLists.txt文件
+    local cmake_file = full_project_path .. "/CMakeLists.txt"
+    if vim.fn.filereadable(cmake_file) == 1 then
+      vim.cmd("edit " .. vim.fn.fnameescape(cmake_file))
+      vim.notify("📝 已打开 CMakeLists.txt", vim.log.levels.INFO)
+    end
+    
+    -- 刷新文件浏览器（如果使用neo-tree等）
+    if vim.fn.exists(":Neotree") == 2 then
+      vim.cmd("Neotree filesystem reveal")
+    end
+    
+    -- 触发Qt项目检测
+    vim.api.nvim_exec_autocmds("DirChanged", { pattern = "*" })
+  end, 500)
+  
   return true
 end
 

@@ -311,23 +311,51 @@ end
 
 -- 设置环境检测
 function M.setup_environment_detection()
-  -- 项目检测和通知
+  -- 项目检测和通知 - 改进版本
   vim.api.nvim_create_autocmd({ "VimEnter", "DirChanged" }, {
     callback = function()
-      if core.detection.is_qt_project() then
-        local env_info = environment_detector.detect_development_environment()
-        vim.notify("🎉 检测到Qt项目，Qt开发工具已激活！(" .. env_info.env_type .. ")", vim.log.levels.INFO)
-        vim.notify("💡 使用 <leader>q 查看Qt相关快捷键", vim.log.levels.INFO)
-        
-        -- 快速环境检查
-        vim.defer_fn(function()
-          environment_detector.quick_environment_check()
-        end, 1000)
-        
-        -- 设置文件监控
-        local project_dir = vim.fn.getcwd()
-        compile_commands.setup_compile_commands_watcher(project_dir)
-      end
+      -- 延迟检测以确保文件系统状态稳定
+      vim.defer_fn(function()
+        if core.detection.is_qt_project() then
+          local project_info = core.detection.get_project_info()
+          local env_info = environment_detector.detect_development_environment()
+          
+          vim.notify("🎉 检测到Qt项目: " .. project_info.name .. " (" .. project_info.type_display .. ")", vim.log.levels.INFO)
+          vim.notify("🛠️ Qt开发工具已激活！(" .. env_info.env_type .. ")", vim.log.levels.INFO)
+          vim.notify("💡 使用 :QtCreateClass, :QtCreateUI 等命令创建文件", vim.log.levels.INFO)
+          
+          -- 快速环境检查
+          vim.defer_fn(function()
+            environment_detector.quick_environment_check()
+          end, 1500)
+          
+          -- 设置文件监控
+          local project_dir = vim.fn.getcwd()
+          compile_commands.setup_compile_commands_watcher(project_dir)
+          
+          -- 如果没有CMakeLists.txt但是是Qt项目，给出提示
+          if not vim.fn.filereadable("CMakeLists.txt") == 1 and not vim.fn.glob("*.pro") ~= "" then
+            vim.notify("⚠️ 未找到CMakeLists.txt或.pro文件，可能需要手动配置构建系统", vim.log.levels.WARN)
+          end
+        else
+          -- 检查是否在包含Qt项目的上级目录
+          local subdirs = vim.fn.glob("*/CMakeLists.txt", false, true)
+          if #subdirs > 0 then
+            for _, cmake_file in ipairs(subdirs) do
+              local file = io.open(cmake_file, "r")
+              if file then
+                local content = file:read("*a")
+                file:close()
+                if content:match("find_package.*Qt[56]") or content:match("find_package.*Qt") then
+                  local subdir_name = vim.fn.fnamemodify(cmake_file, ":h")
+                  vim.notify("💡 发现Qt项目目录: " .. subdir_name .. "，使用 :cd " .. subdir_name .. " 进入", vim.log.levels.INFO)
+                  break
+                end
+              end
+            end
+          end
+        end
+      end, 200)
     end,
   })
 
@@ -431,6 +459,19 @@ function M.setup_environment_detection()
     local designer = require("qt-dev.tools.designer")
     designer.open_current_file_ui()
   end, { desc = "打开Qt Designer" })
+
+  -- Qt项目导航命令
+  vim.api.nvim_create_user_command("QtOpenProject", function()
+    M.open_qt_project_interactive()
+  end, { desc = "交互式打开Qt项目" })
+
+  vim.api.nvim_create_user_command("QtOpenCMake", function()
+    M.open_cmake_file()
+  end, { desc = "打开CMakeLists.txt文件" })
+
+  vim.api.nvim_create_user_command("QtProjectInfo", function()
+    M.show_qt_project_info()
+  end, { desc = "显示当前Qt项目信息" })
 end
 
 -- 调试信息
@@ -455,6 +496,130 @@ end
 function M.show_full_environment_report()
   if not M.ensure_initialized() then return end
   return environment_detector.show_full_environment_report()
+end
+
+-- Qt项目导航功能
+function M.open_qt_project_interactive()
+  if not M.ensure_initialized() then return end
+  
+  -- 搜索当前目录及子目录中的Qt项目
+  local qt_projects = {}
+  local current_dir = vim.fn.getcwd()
+  
+  -- 检查当前目录
+  if core.detection.is_qt_project() then
+    table.insert(qt_projects, {
+      name = vim.fn.fnamemodify(current_dir, ":t"),
+      path = current_dir,
+      type = "current"
+    })
+  end
+  
+  -- 搜索子目录
+  local subdirs = vim.fn.glob("*/CMakeLists.txt", false, true)
+  for _, cmake_file in ipairs(subdirs) do
+    local file = io.open(cmake_file, "r")
+    if file then
+      local content = file:read("*a")
+      file:close()
+      if content:match("find_package.*Qt[56]") or content:match("find_package.*Qt") then
+        local subdir_path = vim.fn.fnamemodify(cmake_file, ":h")
+        local subdir_name = vim.fn.fnamemodify(subdir_path, ":t")
+        table.insert(qt_projects, {
+          name = subdir_name,
+          path = vim.fn.fnamemodify(subdir_path, ":p"),
+          type = "subdir"
+        })
+      end
+    end
+  end
+  
+  if #qt_projects == 0 then
+    vim.notify("❌ 未找到Qt项目", vim.log.levels.WARN)
+    return
+  end
+  
+  -- 显示选择菜单
+  local choices = {}
+  for i, project in ipairs(qt_projects) do
+    local label = project.name
+    if project.type == "current" then
+      label = label .. " (当前目录)"
+    else
+      label = label .. " (子目录)"
+    end
+    table.insert(choices, label)
+  end
+  
+  vim.ui.select(choices, {
+    prompt = "选择Qt项目:",
+  }, function(choice, idx)
+    if choice and idx then
+      local selected_project = qt_projects[idx]
+      vim.cmd("cd " .. vim.fn.fnameescape(selected_project.path))
+      vim.notify("📂 已切换到Qt项目: " .. selected_project.name, vim.log.levels.INFO)
+      
+      -- 打开CMakeLists.txt
+      M.open_cmake_file()
+      
+      -- 触发项目检测
+      vim.api.nvim_exec_autocmds("DirChanged", { pattern = "*" })
+    end
+  end)
+end
+
+function M.open_cmake_file()
+  if not M.ensure_initialized() then return end
+  
+  local cmake_file = "CMakeLists.txt"
+  if vim.fn.filereadable(cmake_file) == 1 then
+    vim.cmd("edit " .. cmake_file)
+    vim.notify("📝 已打开 CMakeLists.txt", vim.log.levels.INFO)
+  else
+    vim.notify("❌ 未找到 CMakeLists.txt 文件", vim.log.levels.ERROR)
+  end
+end
+
+function M.show_qt_project_info()
+  if not M.ensure_initialized() then return end
+  
+  if not core.detection.is_qt_project() then
+    vim.notify("❌ 当前目录不是Qt项目", vim.log.levels.WARN)
+    return
+  end
+  
+  local project_info = core.detection.get_project_info()
+  local info_lines = {
+    "📋 Qt项目信息",
+    "==================",
+    "项目名称: " .. project_info.name,
+    "项目类型: " .. project_info.type_display,
+    "项目根目录: " .. project_info.root,
+    "构建系统: " .. project_info.build_system,
+    "",
+    "📁 项目文件:",
+  }
+  
+  if project_info.files.cmake then
+    table.insert(info_lines, "  ✅ CMakeLists.txt")
+  end
+  if project_info.files.qmake then
+    table.insert(info_lines, "  ✅ .pro/.pri 文件")
+  end
+  if project_info.files.ui_files then
+    table.insert(info_lines, "  ✅ .ui 文件")
+  end
+  if project_info.files.qrc_files then
+    table.insert(info_lines, "  ✅ .qrc 资源文件")
+  end
+  if project_info.files.qml_files then
+    table.insert(info_lines, "  ✅ .qml 文件")
+  end
+  if project_info.files.ts_files then
+    table.insert(info_lines, "  ✅ .ts 翻译文件")
+  end
+  
+  vim.notify(table.concat(info_lines, "\n"), vim.log.levels.INFO)
 end
 
 return M
