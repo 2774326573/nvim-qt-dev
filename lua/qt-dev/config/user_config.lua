@@ -2,6 +2,9 @@
 local utils = require("qt-dev.core.utils")
 local M = {}
 
+-- 首次运行标记文件路径
+local first_run_marker = vim.fn.stdpath('data') .. '/nvim-qt-dev-initialized'
+
 -- 默认配置
 M.default_config = {
   -- Qt安装配置
@@ -279,6 +282,20 @@ function M.show_config()
   end
   
   vim.notify(table.concat(info, "\n"), vim.log.levels.INFO)
+end
+
+-- 检查是否是第一次运行
+function M.is_first_run()
+  return vim.fn.filereadable(first_run_marker) == 0
+end
+
+-- 标记已完成首次初始化
+function M.mark_initialized()
+  local file = io.open(first_run_marker, 'w')
+  if file then
+    file:write(os.date('%Y-%m-%d %H:%M:%S'))
+    file:close()
+  end
 end
 
 return M

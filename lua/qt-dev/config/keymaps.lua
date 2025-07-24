@@ -106,8 +106,11 @@ function M.setup_keymaps(is_vscode)
     })
   end
   
-  -- 显示配置相关快捷键提示
-  vim.notify("💡 配置管理快捷键: <leader>qcs(向导) <leader>qcc(显示) <leader>qcf(创建)", vim.log.levels.INFO)
+  -- 显示配置相关快捷键提示 (仅首次运行)
+  local user_config = require("qt-dev.config.user_config")
+  if user_config.is_first_run() then
+    vim.notify("💡 配置管理快捷键: <leader>qcs(向导) <leader>qcc(显示) <leader>qcf(创建)", vim.log.levels.INFO)
+  end
 end
 
 -- 设置项目特定快捷键

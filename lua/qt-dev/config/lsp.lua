@@ -4,7 +4,10 @@ local M = {}
 
 -- 设置LSP
 function M.setup()
-  utils.info("🔧 LSP配置已设置")
+  local user_config = require("qt-dev.config.user_config")
+  if user_config.is_first_run() then
+    utils.info("🔧 LSP配置已设置")
+  end
   
   -- 检查是否有clangd
   if utils.executable_exists("clangd") then
@@ -26,7 +29,10 @@ function M.setup_clangd()
   
   -- 确保compile_commands.json存在
   if not utils.file_exists("compile_commands.json") then
-    utils.info("建议运行 :QtBuild 来生成 compile_commands.json")
+    local user_config = require("qt-dev.config.user_config")
+    if user_config.is_first_run() then
+      utils.info("建议运行 :QtBuild 来生成 compile_commands.json")
+    end
   end
 end
 
@@ -65,7 +71,10 @@ end
 
 -- 设置项目特定LSP
 function M.setup_project_lsp()
-  utils.info("📁 项目LSP配置已应用")
+  local user_config = require("qt-dev.config.user_config")
+  if user_config.is_first_run() then
+    utils.info("📁 项目LSP配置已应用")
+  end
   
   -- 重启LSP以应用新配置
   vim.defer_fn(function()

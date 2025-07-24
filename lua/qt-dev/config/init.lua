@@ -31,7 +31,9 @@ function M.init(plugin_config)
   -- 标记已初始化
   initialized = true
   
-  vim.notify("⚙️ Qt开发环境配置完成", vim.log.levels.INFO)
+  if user_config.is_first_run() then
+    vim.notify("⚙️ Qt开发环境配置完成", vim.log.levels.INFO)
+  end
   
   return current_config
 end
@@ -75,12 +77,16 @@ end
 M.lsp = {
   setup = function()
     -- LSP配置逻辑
-    vim.notify("🔧 LSP配置已设置", vim.log.levels.INFO)
+    if user_config.is_first_run() then
+      vim.notify("🔧 LSP配置已设置", vim.log.levels.INFO)
+    end
   end,
   
   setup_project_lsp = function()
     -- 项目特定LSP配置
-    vim.notify("📁 项目LSP配置已应用", vim.log.levels.INFO)
+    if user_config.is_first_run() then
+      vim.notify("📁 项目LSP配置已应用", vim.log.levels.INFO)
+    end
   end
 }
 

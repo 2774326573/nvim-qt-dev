@@ -1,223 +1,37 @@
--- Qt UI模板创建模块
+-- Qt UI模板模块
 local utils = require("qt-dev.core.utils")
+local designer = require("qt-dev.tools.designer")
 local M = {}
 
--- UI模板类型
+-- 路径分隔符
+local path_sep = utils.is_windows() and "\\" or "/"
+
+-- UI模板
 local ui_templates = {
-  mainwindow = {
-    name = "主窗口",
-    description = "带菜单栏和状态栏的主窗口",
-    widget_class = "QMainWindow"
-  },
-  dialog = {
-    name = "对话框",
-    description = "标准对话框窗口",
-    widget_class = "QDialog"
-  },
-  widget = {
-    name = "普通窗口",
-    description = "基础的QWidget窗口",
-    widget_class = "QWidget"
-  },
-  form = {
-    name = "表单窗口",
-    description = "带表单布局的窗口",
-    widget_class = "QWidget"
-  }
-}
-
--- 选择并创建UI模板
-function M.select_and_create_ui_template()
-  local template_names = {}
-  local template_keys = {}
-  
-  for key, template in pairs(ui_templates) do
-    table.insert(template_keys, key)
-    table.insert(template_names, string.format("%s - %s", template.name, template.description))
-  end
-  
-  vim.ui.select(template_names, {
-    prompt = "选择UI模板类型:",
-  }, function(choice, idx)
-    if choice and idx then
-      local template_key = template_keys[idx]
-      
-      vim.ui.input({
-        prompt = "请输入UI文件名 (不含.ui扩展名): ",
-        default = template_key,
-      }, function(filename)
-        if filename and filename ~= "" then
-          M.create_ui_template(filename, template_key)
-        end
-      end)
-    end
-  end)
-end
-
--- 创建UI模板
-function M.create_ui_template(filename, template_type)
-  template_type = template_type or "widget"
-  
-  if not filename:match("%.ui$") then
-    filename = filename .. ".ui"
-  end
-  
-  if utils.file_exists(filename) then
-    vim.ui.select({"覆盖", "取消"}, {
-      prompt = string.format("文件 '%s' 已存在，是否覆盖？", filename),
-    }, function(choice)
-      if choice == "覆盖" then
-        M.write_ui_file(filename, template_type)
-      end
-    end)
-  else
-    M.write_ui_file(filename, template_type)
-  end
-end
-
--- 写入UI文件
-function M.write_ui_file(filename, template_type)
-  local content = M.generate_ui_content(filename, template_type)
-  
-  local file = io.open(filename, "w")
-  if not file then
-    utils.error("无法创建UI文件: " .. filename)
-    return false
-  end
-  
-  file:write(content)
-  file:close()
-  
-  utils.success(string.format("UI文件创建成功: %s", filename))
-  
-  -- 询问是否打开Qt Designer
-  vim.ui.select({"是", "否"}, {
-    prompt = "是否用Qt Designer打开新创建的UI文件？",
-  }, function(choice)
-    if choice == "是" then
-      local designer = require("qt-dev.tools.designer")
-      designer.open_designer(filename)
-    end
-  end)
-  
-  return true
-end
-
--- 生成UI内容
-function M.generate_ui_content(filename, template_type)
-  local basename = filename:gsub("%.ui$", "")
-  local class_name = basename:gsub("^%l", string.upper)
-  local template = ui_templates[template_type] or ui_templates.widget
-  
-  if template_type == "mainwindow" then
-    return M.generate_mainwindow_ui(class_name)
-  elseif template_type == "dialog" then
-    return M.generate_dialog_ui(class_name)
-  elseif template_type == "form" then
-    return M.generate_form_ui(class_name)
-  else
-    return M.generate_widget_ui(class_name)
-  end
-end
-
--- 生成主窗口UI
-function M.generate_mainwindow_ui(class_name)
-  return string.format([[<?xml version="1.0" encoding="UTF-8"?>
+  widget = function(name)
+    return string.format([[<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>%s</class>
- <widget class="QMainWindow" name="%s">
+ <widget class="QWidget" name="%s">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>400</width>
+    <height>300</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>%s</string>
   </property>
-  <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="verticalLayout">
-    <item>
-     <widget class="QLabel" name="label">
-      <property name="text">
-       <string>欢迎使用%s</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignCenter</set>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>800</width>
-     <height>22</height>
-    </rect>
-   </property>
-   <widget class="QMenu" name="menu_file">
-    <property name="title">
-     <string>文件(&amp;F)</string>
-    </property>
-    <addaction name="action_new"/>
-    <addaction name="action_open"/>
-    <addaction name="separator"/>
-    <addaction name="action_exit"/>
-   </widget>
-   <widget class="QMenu" name="menu_help">
-    <property name="title">
-     <string>帮助(&amp;H)</string>
-    </property>
-    <addaction name="action_about"/>
-   </widget>
-   <addaction name="menu_file"/>
-   <addaction name="menu_help"/>
-  </widget>
-  <widget class="QStatusBar" name="statusbar"/>
-  <action name="action_new">
-   <property name="text">
-    <string>新建(&amp;N)</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+N</string>
-   </property>
-  </action>
-  <action name="action_open">
-   <property name="text">
-    <string>打开(&amp;O)</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+O</string>
-   </property>
-  </action>
-  <action name="action_exit">
-   <property name="text">
-    <string>退出(&amp;X)</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+Q</string>
-   </property>
-  </action>
-  <action name="action_about">
-   <property name="text">
-    <string>关于(&amp;A)</string>
-   </property>
-  </action>
  </widget>
  <resources/>
  <connections/>
-</ui>
-]], class_name, class_name, class_name, class_name)
-end
-
--- 生成对话框UI
-function M.generate_dialog_ui(class_name)
-  return string.format([[<?xml version="1.0" encoding="UTF-8"?>
+</ui>]], name, name, name)
+  end,
+  
+  dialog = function(name)
+    return string.format([[<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>%s</class>
  <widget class="QDialog" name="%s">
@@ -232,41 +46,22 @@ function M.generate_dialog_ui(class_name)
   <property name="windowTitle">
    <string>%s</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QLabel" name="label">
-     <property name="text">
-      <string>这是一个对话框</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item>
-    <widget class="QDialogButtonBox" name="buttonBox">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-  </layout>
+  <widget class="QDialogButtonBox" name="buttonBox">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>240</y>
+     <width>341</width>
+     <height>32</height>
+    </rect>
+   </property>
+   <property name="orientation">
+    <enum>Qt::Horizontal</enum>
+   </property>
+   <property name="standardButtons">
+    <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+   </property>
+  </widget>
  </widget>
  <resources/>
  <connections>
@@ -275,152 +70,214 @@ function M.generate_dialog_ui(class_name)
    <signal>accepted()</signal>
    <receiver>%s</receiver>
    <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>248</x>
-     <y>254</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>157</x>
-     <y>274</y>
-    </hint>
-   </hints>
   </connection>
   <connection>
    <sender>buttonBox</sender>
    <signal>rejected()</signal>
    <receiver>%s</receiver>
    <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>316</x>
-     <y>260</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>286</x>
-     <y>274</y>
-    </hint>
-   </hints>
   </connection>
  </connections>
-</ui>
-]], class_name, class_name, class_name, class_name, class_name)
-end
-
--- 生成表单UI
-function M.generate_form_ui(class_name)
-  return string.format([[<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>%s</class>
- <widget class="QWidget" name="%s">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>400</width>
-    <height>300</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>%s</string>
-  </property>
-  <layout class="QFormLayout" name="formLayout">
-   <item row="0" column="0">
-    <widget class="QLabel" name="label_name">
-     <property name="text">
-      <string>姓名:</string>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="1">
-    <widget class="QLineEdit" name="lineEdit_name"/>
-   </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="label_email">
-     <property name="text">
-      <string>邮箱:</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="1">
-    <widget class="QLineEdit" name="lineEdit_email"/>
-   </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="label_age">
-     <property name="text">
-      <string>年龄:</string>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="1">
-    <widget class="QSpinBox" name="spinBox_age"/>
-   </item>
-   <item row="3" column="0" colspan="2">
-    <widget class="QPushButton" name="pushButton_submit">
-     <property name="text">
-      <string>提交</string>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
-]], class_name, class_name, class_name)
-end
-
--- 生成普通窗口UI
-function M.generate_widget_ui(class_name)
-  return string.format([[<?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0">
- <class>%s</class>
- <widget class="QWidget" name="%s">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>400</width>
-    <height>300</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>%s</string>
-  </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QLabel" name="label">
-     <property name="text">
-      <string>Hello, Qt!</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
-</ui>
-]], class_name, class_name, class_name)
-end
-
--- 列出UI文件
-function M.list_ui_files()
-  local ui_files = vim.fn.glob("**/*.ui", false, true)
+</ui>]], name, name, name, name, name)
+  end,
   
-  if #ui_files == 0 then
-    utils.info("项目中没有找到UI文件")
+  mainwindow = function(name)
+    return string.format([[<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>%s</class>
+ <widget class="QMainWindow" name="%s">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>%s</string>
+  </property>
+  <widget class="QWidget" name="centralwidget"/>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>22</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>]], name, name, name)
+  end
+}
+
+function M.create_ui_template(template_type, ui_name)
+  if not ui_name or ui_name == "" then
+    vim.ui.input({ prompt = "请输入UI文件名称 (不含扩展名): " }, function(input)
+      if input and input ~= "" then
+        M.create_ui_template(template_type, input)
+      end
+    end)
     return
   end
+
+  -- 验证名称
+  if not ui_name:match("^[%w_%-]+$") then
+    vim.notify("❌ 文件名只能包含字母、数字、下划线和连字符", vim.log.levels.ERROR)
+    return
+  end
+
+  -- 设置各文件的目录路径
+  local cwd = vim.fn.getcwd()
+  local ui_dir = vim.g.qt_ui_dir or (cwd .. path_sep .. "ui")
+  local include_dir = cwd .. path_sep .. "include"
+  local src_dir = cwd .. path_sep .. "src"
   
-  utils.info("项目UI文件列表:")
-  for i, file in ipairs(ui_files) do
-    utils.info(string.format("  %d. %s", i, file))
+  local ui_file = ui_dir .. path_sep .. ui_name .. ".ui"
+  local h_file = include_dir .. path_sep .. ui_name .. ".h"
+  local cpp_file = src_dir .. path_sep .. ui_name .. ".cpp"
+
+  -- 检查文件是否已存在
+  if vim.fn.filereadable(ui_file) == 1 or vim.fn.filereadable(h_file) == 1 or vim.fn.filereadable(cpp_file) == 1 then
+    vim.notify("❌ UI或类文件已存在: " .. ui_name, vim.log.levels.ERROR)
+    return
+  end
+
+  -- 确保所有目录存在
+  if not utils.ensure_directory(ui_dir) or not utils.ensure_directory(include_dir) or not utils.ensure_directory(src_dir) then
+    return
+  end
+
+  -- 生成UI内容
+  local template_func = ui_templates[template_type]
+  if not template_func then
+    vim.notify("❌ 未知的UI模板类型: " .. template_type, vim.log.levels.ERROR)
+    return
+  end
+
+  local ui_content = template_func(ui_name)
+  local class_name = ui_name:gsub("^%l", string.upper)
+  
+  -- 根据模板类型确定基类
+  local base_class = "QWidget"
+  if template_type == "dialog" then
+    base_class = "QDialog"
+  elseif template_type == "mainwindow" then
+    base_class = "QMainWindow"
+  end
+
+  -- 生成头文件内容
+  local h_content = string.format([[#ifndef %s_H
+#define %s_H
+
+#include <%s>
+
+namespace Ui {
+class %s;
+}
+
+class %s : public %s
+{
+    Q_OBJECT
+
+public:
+    explicit %s(%s *parent = nullptr);
+    ~%s();
+
+private:
+    Ui::%s *ui;
+};
+
+#endif // %s_H]], 
+    ui_name:upper(), ui_name:upper(), base_class, class_name, 
+    class_name, base_class, class_name, 
+    base_class == "QMainWindow" and "QWidget" or base_class,
+    class_name, class_name, ui_name:upper())
+
+  -- 生成源文件内容
+  local cpp_content = string.format([[#include "%s.h"
+#include "ui_%s.h"
+
+%s::%s(%s *parent) :
+    %s(parent),
+    ui(new Ui::%s)
+{
+    ui->setupUi(this);
+}
+
+%s::~%s()
+{
+    delete ui;
+}]], 
+    ui_name, ui_name, class_name, class_name, 
+    base_class == "QMainWindow" and "QWidget" or base_class,
+    base_class, class_name, class_name, class_name)
+
+  -- 写入文件
+  local ok_ui = utils.write_file_safely(ui_file, ui_content)
+  local ok_h = utils.write_file_safely(h_file, h_content)
+  local ok_cpp = utils.write_file_safely(cpp_file, cpp_content)
+
+  if ok_ui and ok_h and ok_cpp then
+    vim.notify("✅ UI及类文件创建成功: " .. ui_name, vim.log.levels.INFO)
+    vim.notify("💡 可以使用 <leader>qd 打开Qt Designer编辑", vim.log.levels.INFO)
+
+    -- 询问是否立即打开
+    vim.ui.select({ "是", "否" }, {
+      prompt = "是否立即在Qt Designer中打开？",
+    }, function(choice)
+      if choice == "是" then
+        designer.open_designer(ui_file)
+      end
+    end)
+    
+    -- 打开头文件
+    vim.cmd("edit " .. vim.fn.fnameescape(h_file))
+  end
+end
+
+function M.select_and_create_ui_template()
+  local templates = {
+    { name = "QWidget", type = "widget" },
+    { name = "QDialog", type = "dialog" },
+    { name = "QMainWindow", type = "mainwindow" }
+  }
+  
+  local choices = {}
+  for _, template in ipairs(templates) do
+    table.insert(choices, template.name)
   end
   
-  return ui_files
+  vim.ui.select(choices, {
+    prompt = "选择UI模板类型:",
+  }, function(choice, idx)
+    if choice and idx then
+      local template_type = templates[idx].type
+      vim.ui.input({ prompt = "输入UI文件名: " }, function(ui_name)
+        if ui_name and ui_name ~= "" then
+          M.create_ui_template(template_type, ui_name)
+        end
+      end)
+    end
+  end)
+end
+
+function M.list_ui_files()
+  local ui_files = vim.fn.glob("**/*.ui", false, true)
+  if #ui_files > 0 then
+    local display_files = {}
+    for _, file in ipairs(ui_files) do
+      table.insert(display_files, vim.fn.fnamemodify(file, ":."))
+    end
+    vim.notify("📋 UI文件列表:\n" .. table.concat(display_files, "\n"), vim.log.levels.INFO)
+  else
+    vim.notify("ℹ️ 未找到UI文件", vim.log.levels.INFO)
+  end
 end
 
 return M

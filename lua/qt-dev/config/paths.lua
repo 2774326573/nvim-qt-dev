@@ -40,14 +40,22 @@ local function get_qt_base_path()
     table.insert(windows_qt_paths, (os.getenv("QT_DIR") and os.getenv("QT_DIR") .. "\\" .. config.qt.preferred_compiler) or "")
     table.insert(windows_qt_paths, (os.getenv("QTDIR") and os.getenv("QTDIR") .. "\\" .. config.qt.preferred_compiler) or "")
     
-    -- 调试信息：输出正在检查的路径
-    print("Qt路径检测开始...")
+    -- 静默检测Qt路径
+    local is_first_run = user_config.is_first_run()
+    if is_first_run then
+      vim.notify("🔍 正在检测Qt安装路径...", vim.log.levels.INFO)
+    end
+    
     for _, path in ipairs(windows_qt_paths) do
       if path ~= "" then
         local exists = vim.fn.isdirectory(path) == 1
-        print(string.format("检查路径: %s - %s", path, exists and "存在" or "不存在"))
+        if is_first_run then
+          vim.notify(string.format("检查路径: %s - %s", path, exists and "存在" or "不存在"), vim.log.levels.DEBUG)
+        end
         if exists then
-          print(string.format("找到Qt安装路径: %s", path))
+          if is_first_run then
+            vim.notify(string.format("✅ 找到Qt安装路径: %s", path), vim.log.levels.INFO)
+          end
           return path
         end
       end
@@ -55,7 +63,9 @@ local function get_qt_base_path()
     
     -- 如果没找到，返回默认路径
     local default_path = config.qt.base_paths.windows[1] .. "\\Qt" .. config.qt.preferred_version .. "\\" .. config.qt.preferred_version
-    print("使用默认Qt路径: " .. default_path)
+    if is_first_run then
+      vim.notify("使用默认Qt路径: " .. default_path, vim.log.levels.INFO)
+    end
     return default_path
   else
     -- Linux/WSL Qt路径检测 - 使用用户配置
@@ -91,9 +101,13 @@ local function detect_qt_compiler(qt_base_path)
     local preferred = config.qt.preferred_compiler
     local test_path = qt_base_path .. "\\" .. preferred .. "\\bin\\qmake.exe"
     local executable = vim.fn.executable(test_path) == 1
-    print(string.format("检查首选编译器: %s - qmake路径: %s - %s", preferred, test_path, executable and "可用" or "不可用"))
+    if is_first_run then
+      vim.notify(string.format("检查首选编译器: %s - qmake路径: %s - %s", preferred, test_path, executable and "可用" or "不可用"), vim.log.levels.DEBUG)
+    end
     if executable then
-      print(string.format("使用首选编译器: %s", preferred))
+      if is_first_run then
+        vim.notify(string.format("✅ 使用首选编译器: %s", preferred), vim.log.levels.INFO)
+      end
       return preferred
     end
     
@@ -104,19 +118,27 @@ local function detect_qt_compiler(qt_base_path)
       "msvc2022", "msvc2019", "msvc2017",
     }
 
-    print(string.format("检测Qt编译器，基础路径: %s", qt_base_path))
+    if is_first_run then
+      vim.notify(string.format("检测Qt编译器，基础路径: %s", qt_base_path), vim.log.levels.DEBUG)
+    end
     for _, compiler in ipairs(possible_compilers) do
       if compiler ~= preferred then  -- 跳过已经测试过的首选编译器
         local test_path = qt_base_path .. "\\" .. compiler .. "\\bin\\qmake.exe"
         local executable = vim.fn.executable(test_path) == 1
-        print(string.format("检查编译器: %s - qmake路径: %s - %s", compiler, test_path, executable and "可用" or "不可用"))
+        if is_first_run then
+          vim.notify(string.format("检查编译器: %s - qmake路径: %s - %s", compiler, test_path, executable and "可用" or "不可用"), vim.log.levels.DEBUG)
+        end
         if executable then
-          print(string.format("找到可用编译器: %s", compiler))
+          if is_first_run then
+            vim.notify(string.format("✅ 找到可用编译器: %s", compiler), vim.log.levels.INFO)
+          end
           return compiler
         end
       end
     end
-    print("使用默认编译器: " .. preferred)
+    if is_first_run then
+      vim.notify("使用默认编译器: " .. preferred, vim.log.levels.INFO)
+    end
     return preferred
   else
     -- Linux下直接使用基础路径，不需要编译器子目录

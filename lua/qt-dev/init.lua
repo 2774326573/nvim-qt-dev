@@ -6,11 +6,15 @@ M.version = "1.0.0"
 
 -- 内部模块引用
 local config = require("qt-dev.config")
-local templates = require("qt-dev.templates")
-local tools = require("qt-dev.tools")
 local core = require("qt-dev.core")
 local compile_commands = require("qt-dev.tools.compile_commands")
 local environment_detector = require("qt-dev.core.environment_detector")
+
+-- 模板模块
+local class_creator = require("qt-dev.templates.class_creator")
+local ui_templates = require("qt-dev.templates.ui")
+local resources = require("qt-dev.templates.resources")
+local translations = require("qt-dev.templates.translations")
 
 -- 插件是否已初始化
 local initialized = false
@@ -65,8 +69,17 @@ function M.setup(user_config)
   initialized = true
   
   -- 通知初始化完成
+  local user_config = require("qt-dev.config.user_config")
+  local is_first_run = user_config.is_first_run()
+  
   if final_config.notify_level <= vim.log.levels.INFO then
-    vim.notify("🎉 nvim-qt-dev 已初始化", vim.log.levels.INFO)
+    if is_first_run then
+      vim.notify("🎉 nvim-qt-dev 已初始化 (首次运行)", vim.log.levels.INFO)
+      user_config.mark_initialized()
+    else
+      -- 静默初始化，只在debug级别显示
+      vim.notify("nvim-qt-dev 已初始化", vim.log.levels.DEBUG)
+    end
   end
 end
 
@@ -82,10 +95,12 @@ function M.create_project(name, project_type)
   
   project_type = project_type or "desktop"
   
+  local project_structure = require("qt-dev.templates.project_structure")
+  
   if name and name ~= "" then
-    templates.create_project_direct(name, project_type)
+    project_structure.create_project_direct(name, project_type)
   else
-    templates.create_project_interactive()
+    project_structure.create_project_interactive()
   end
 end
 
@@ -102,6 +117,57 @@ end
 -- 创建QML应用
 function M.create_qml(name)
   M.create_project(name, "qml")
+end
+
+-- 模板功能接口
+function M.create_qt_class()
+  if not M.ensure_initialized() then return end
+  class_creator.create_quick_qt_class()
+end
+
+function M.create_ui_class()
+  if not M.ensure_initialized() then return end
+  class_creator.create_qt_ui_class()
+end
+
+function M.create_inheritance_class()
+  if not M.ensure_initialized() then return end
+  class_creator.create_qt_inheritance_class()
+end
+
+function M.create_normal_class()
+  if not M.ensure_initialized() then return end
+  class_creator.create_normal_class()
+end
+
+function M.create_ui_template()
+  if not M.ensure_initialized() then return end
+  ui_templates.select_and_create_ui_template()
+end
+
+function M.list_ui_files()
+  if not M.ensure_initialized() then return end
+  ui_templates.list_ui_files()
+end
+
+function M.create_resource_template()
+  if not M.ensure_initialized() then return end
+  resources.select_and_create_resource_template()
+end
+
+function M.list_resource_files()
+  if not M.ensure_initialized() then return end
+  resources.list_resource_files()
+end
+
+function M.create_translation_template()
+  if not M.ensure_initialized() then return end
+  translations.select_and_create_translation_template()
+end
+
+function M.list_translation_files()
+  if not M.ensure_initialized() then return end
+  translations.list_translation_files()
 end
 
 -- Qt项目检测到时的回调
@@ -319,6 +385,52 @@ function M.setup_environment_detection()
   end, {
     desc = "快速Qt环境检查"
   })
+
+  -- 模板创建命令
+  vim.api.nvim_create_user_command("QtCreateClass", function()
+    M.create_qt_class()
+  end, { desc = "创建Qt类" })
+
+  vim.api.nvim_create_user_command("QtCreateUIClass", function()
+    M.create_ui_class()
+  end, { desc = "创建Qt UI类" })
+
+  vim.api.nvim_create_user_command("QtCreateInheritanceClass", function()
+    M.create_inheritance_class()
+  end, { desc = "创建Qt继承类" })
+
+  vim.api.nvim_create_user_command("QtCreateNormalClass", function()
+    M.create_normal_class()
+  end, { desc = "创建普通C++类" })
+
+  vim.api.nvim_create_user_command("QtCreateUI", function()
+    M.create_ui_template()
+  end, { desc = "创建UI模板" })
+
+  vim.api.nvim_create_user_command("QtListUI", function()
+    M.list_ui_files()
+  end, { desc = "列出UI文件" })
+
+  vim.api.nvim_create_user_command("QtCreateResource", function()
+    M.create_resource_template()
+  end, { desc = "创建资源文件" })
+
+  vim.api.nvim_create_user_command("QtListResource", function()
+    M.list_resource_files()
+  end, { desc = "列出资源文件" })
+
+  vim.api.nvim_create_user_command("QtCreateTranslation", function()
+    M.create_translation_template()
+  end, { desc = "创建翻译文件" })
+
+  vim.api.nvim_create_user_command("QtListTranslation", function()
+    M.list_translation_files()
+  end, { desc = "列出翻译文件" })
+
+  vim.api.nvim_create_user_command("QtDesigner", function()
+    local designer = require("qt-dev.tools.designer")
+    designer.open_current_file_ui()
+  end, { desc = "打开Qt Designer" })
 end
 
 -- 调试信息

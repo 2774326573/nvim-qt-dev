@@ -196,7 +196,7 @@ function M.list_ui_files()
   
   utils.info("项目UI文件列表:")
   for i, file in ipairs(ui_files) do
-    print(string.format("  %d. %s", i, file))
+    vim.notify(string.format("  %d. %s", i, file), vim.log.levels.INFO)
   end
   
   -- 询问是否打开某个文件
